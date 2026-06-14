@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My personal Wallet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ---- Глобальные настройки и палитра ---- */
+  :root {
+    --paper: #f3efe6;
+    --card: #fbf9f4;
+    --ink: #20201d;
+    --muted: #6f6a5f;
+    --line: #ddd6c6;
+    --green: #2f6b4f;
+    --red: #b04a32;
+    --shadow: 0 1px 2px rgba(32,32,29,.04), 0 8px 24px rgba(32,32,29,.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Hanken Grotesk', 'Segoe UI', system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(circle at 1px 1px, rgba(32,32,29,.025) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .mono { font-variant-numeric: tabular-nums; }
+
+  /* ---- Экран входа ---- */
+  #auth-view {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .auth-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .brand {
+    font-family: 'Hanken Grotesk', sans-serif;
+    font-weight: 900;
+    font-size: 30px;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+  }
+  .brand small {
+    display: block;
+    font-family: 'Hanken Grotesk', sans-serif;
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+    letter-spacing: .01em;
+  }
+  .auth-card .brand { margin-bottom: 28px; }
+
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
+  input, select {
+    width: 100%;
+    font-family: inherit;
+    font-size: 15px;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--ink);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(32,32,29,.07);
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 9px;
+    font-weight: 600;
+    transition: transform .08s, opacity .15s, background .15s;
+  }
+  button:active { transform: translateY(1px); }
+  .btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 12px 18px;
+    font-size: 15px;
+    width: 100%;
+    margin-top: 22px;
+  }
+  .btn-primary:hover { opacity: .9; }
+  .switch {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .switch a { color: var(--ink); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .msg { font-size: 13.5px; margin-top: 14px; padding: 10px 12px; border-radius: 8px; display: none; }
+  .msg.error { display: block; background: #f7e4de; color: var(--red); }
+  .msg.ok { display: block; background: #e1ede6; color: var(--green); }
+
+  /* ---- Основное приложение ---- */
+  #app-view { display: none; max-width: 1000px; margin: 0 auto; padding: 28px 24px 80px; }
+  header.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .user-box { display: flex; align-items: center; gap: 14px; font-size: 14px; color: var(--muted); }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  .btn-ghost:hover { background: #efe9dc; }
+
+  /* Значок-предупреждение об отрицательном балансе */
+  .bal-warn {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #C0392B; color: #fff; font-weight: 700; font-size: 15px;
+    cursor: help; user-select: none; flex: none;
+  }
+  .bal-warn-tip {
+    position: absolute; top: 132%; right: 0;
+    width: 270px; background: #2b2b2b; color: #fff;
+    padding: 11px 13px; border-radius: 9px; font-size: 13px; font-weight: 400;
+    line-height: 1.45; box-shadow: 0 8px 22px rgba(0,0,0,.28);
+    opacity: 0; visibility: hidden; transform: translateY(-4px);
+    transition: opacity .15s ease, transform .15s ease; z-index: 60;
+    text-align: left; pointer-events: none;
+  }
+  .bal-warn:hover .bal-warn-tip, .bal-warn:focus .bal-warn-tip {
+    opacity: 1; visibility: visible; transform: translateY(0);
+  }
+
+  /* Карточки баланса */
+  .balance-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .bcard {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  .bcard .lbl { font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .bcard .val { font-size: 27px; font-weight: 700; margin-top: 8px; letter-spacing: -.01em; }
+  .bcard.income .val { color: var(--green); }
+  .bcard.expense .val { color: var(--red); }
+
+  /* Секции */
+  .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: start; }
+  section.block {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    padding: 22px;
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+  }
+  section.block h2 {
+    font-family: 'Hanken Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 21px;
+    margin-bottom: 16px;
+    letter-spacing: -.01em;
+  }
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 18px; }
+  .form-row > div { flex: 1; min-width: 110px; }
+  .form-row label { margin-top: 0; }
+  .form-row button { padding: 11px 16px; background: var(--ink); color: var(--paper); font-size: 14px; white-space: nowrap; }
+
+  /* Списки записей */
+  .item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 4px;
+    border-bottom: 1px solid var(--line);
+    gap: 10px;
+  }
+  .item:last-child { border-bottom: none; }
+  .item .info { min-width: 0; }
+  .item .info .t1 { font-weight: 600; font-size: 15px; }
+  .item .info .t2 { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .item .right { display: flex; align-items: center; gap: 12px; }
+  .amount { font-weight: 700; font-size: 15.5px; }
+  .amount.income { color: var(--green); }
+  .amount.expense { color: var(--red); }
+  .tag { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #ece6d8; color: var(--muted); font-weight: 600; }
+  .del {
+    background: transparent; border: none; color: var(--muted);
+    font-size: 18px; line-height: 1; padding: 2px 6px; border-radius: 6px;
+  }
+  .del:hover { background: #f7e4de; color: var(--red); }
+  .empty { color: var(--muted); font-size: 14px; padding: 16px 4px; text-align: center; }
+  .settle { font-size: 12px; padding: 5px 10px; background: #e1ede6; color: var(--green); border: 1px solid #c5ddd0; }
+  .settled { text-decoration: line-through; opacity: .55; }
+
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .chart-box { position: relative; height: 260px; }
+
+  @media (max-width: 760px) {
+    .balance-row { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: 1fr; }
+    .charts { grid-template-columns: 1fr; }
+  }
+
+  /* Лёгкое появление при загрузке */
+  .fade { animation: fade .5s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<!-- ================= ЭКРАН ВХОДА ================= -->
+<div id="auth-view">
+  <div class="auth-card fade">
+    <div class="brand">My personal Wallet<small id="auth-subtitle">Вход в аккаунт</small></div>
+
+    <label for="email">Email</label>
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="username">
+
+    <label for="password">Пароль</label>
+    <input id="password" type="password" placeholder="••••••" autocomplete="current-password">
+
+    <button class="btn-primary" id="auth-btn" onclick="onAuthSubmit()">Войти</button>
+
+    <div class="msg" id="auth-msg"></div>
+
+    <div class="switch" id="auth-switch">
+      Нет аккаунта? <a onclick="toggleMode()">Зарегистрироваться</a>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ОСНОВНОЕ ПРИЛОЖЕНИЕ ================= -->
+<div id="app-view">
+  <header class="topbar">
+    <div class="brand" style="font-size:24px">My personal Wallet</div>
+    <div class="user-box">
+      <span id="bal-warn" class="bal-warn" style="display:none;" tabindex="0" aria-label="Предупреждение о балансе">!
+        <span class="bal-warn-tip">Похоже, ваши расходы превысили доходы — баланс отрицательный. Возможно, вы забыли учесть какой-то доход. Добавьте операцию дохода, чтобы учёт оставался корректным.</span>
+      </span>
+      <span id="who"></span>
+      <button class="btn-ghost" onclick="logout()">Выйти</button>
+    </div>
+  </header>
+
+  <div class="balance-row" id="balance-row">
+    <div class="bcard income"><div class="lbl">Доходы</div><div class="val mono" id="b-income">—</div></div>
+    <div class="bcard expense"><div class="lbl">Расходы</div><div class="val mono" id="b-expense">—</div></div>
+    <div class="bcard"><div class="lbl">Баланс</div><div class="val mono" id="b-balance">—</div></div>
+  </div>
+
+  <!-- Статистика и экспорт -->
+  <section class="block">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <h2 style="margin:0">Статистика</h2>
+      <button class="btn-ghost" onclick="exportExcel()">⬇ Скачать Excel</button>
+    </div>
+    <div class="charts">
+      <div class="chart-box"><canvas id="chart-cat"></canvas></div>
+      <div class="chart-box"><canvas id="chart-month"></canvas></div>
+    </div>
+    <div class="empty" id="stats-empty" style="display:none">Добавьте операции, чтобы увидеть графики</div>
+  </section>
+
+  <div class="grid">
+    <div>
+      <!-- Транзакции -->
+      <section class="block">
+        <h2>Операции</h2>
+        <div class="form-row">
+          <div style="flex:0.8"><label>Сумма</label><input id="tx-amount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+          <div style="flex:0.8"><label>Тип</label>
+            <select id="tx-type"><option value="expense">Расход</option><option value="income">Доход</option></select>
+          </div>
+          <div><label>Категория</label><select id="tx-category"></select></div>
+        </div>
+        <div class="form-row">
+          <div style="flex:2"><label>Описание</label><input id="tx-desc" type="text" placeholder="например, продукты"></div>
+          <div><label>Дата</label><input id="tx-date" type="date"></div>
+          <button onclick="addTransaction()">Добавить</button>
+        </div>
+        <div id="tx-list"></div>
+      </section>
+    </div>
+
+    <div>
+      <!-- Категории -->
+      <section class="block">
+        <h2>Категории</h2>
+        <div class="form-row">
+          <div style="flex:1.4"><label>Название</label><input id="cat-name" type="text" placeholder="например, Зарплата"></div>
+          <div><label>Тип</label>
+            <select id="cat-type"><option value="expense">Расход</option><option value="income">Доход</option></select>
+          </div>
+          <button onclick="addCategory()">+</button>
+        </div>
+        <div id="cat-list"></div>
+      </section>
+
+      <!-- Долги -->
+      <section class="block">
+        <h2>Долги</h2>
+        <div class="form-row">
+          <div style="flex:1.4"><label>Кто / кому</label><input id="debt-name" type="text" placeholder="Иван"></div>
+          <div><label>Сумма</label><input id="debt-amount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        </div>
+        <div class="form-row">
+          <div><label>Направление</label>
+            <select id="debt-dir"><option value="i_owe">Я должен</option><option value="owed_to_me">Мне должны</option></select>
+          </div>
+          <button onclick="addDebt()">Добавить</button>
+        </div>
+        <div id="debt-list"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====================================================================
+   Адрес твоего REST API. Если сервер запущен на другом порту/адресе —
+   поменяй здесь одну строку.
+   ==================================================================== */
+const API = "http://127.0.0.1:8000";
+if (window.Chart) Chart.defaults.font.family = "'Hanken Grotesk', sans-serif";
+
+let token = localStorage.getItem("fin_token") || null;
+let userEmail = localStorage.getItem("fin_email") || null;
+let mode = "login"; // login | register
+let categories = [];
+
+/* ---------- Вспомогательная обёртка над fetch ---------- */
+async function api(path, options = {}) {
+  const headers = options.headers || {};
+  if (token) headers["Authorization"] = "Bearer " + token;
+  let res;
+  try {
+    res = await fetch(API + path, { ...options, headers });
+  } catch (e) {
+    throw new Error("Не удаётся соединиться с сервером. Проверь, что он запущен (uvicorn).");
+  }
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = data.detail;
+    throw new Error(typeof detail === "string" ? detail : "Ошибка запроса (" + res.status + ")");
+  }
+  return data;
+}
+
+/* ---------- Форматирование денег ---------- */
+function money(value) {
+  const n = Number(value);
+  const sign = n < 0 ? "−" : "";
+  const abs = Math.abs(n).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return sign + abs + " ₽";
+}
+
+/* ====================== АВТОРИЗАЦИЯ ====================== */
+function toggleMode() {
+  mode = mode === "login" ? "register" : "login";
+  document.getElementById("auth-subtitle").textContent = mode === "login" ? "Вход в аккаунт" : "Создание аккаунта";
+  document.getElementById("auth-btn").textContent = mode === "login" ? "Войти" : "Зарегистрироваться";
+  document.getElementById("auth-switch").innerHTML = mode === "login"
+    ? 'Нет аккаунта? <a onclick="toggleMode()">Зарегистрироваться</a>'
+    : 'Уже есть аккаунт? <a onclick="toggleMode()">Войти</a>';
+  showMsg("", "");
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById("auth-msg");
+  el.className = "msg" + (type ? " " + type : "");
+  el.textContent = text;
+}
+
+async function onAuthSubmit() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  if (!email || !password) { showMsg("Введите email и пароль", "error"); return; }
+
+  try {
+    if (mode === "register") {
+      await api("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      showMsg("Аккаунт создан! Теперь входим...", "ok");
+    }
+    // Логин (FastAPI ждёт form-data: username + password)
+    const body = new URLSearchParams();
+    body.append("username", email);
+    body.append("password", password);
+    const data = await api("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    token = data.access_token;
+    userEmail = email;
+    localStorage.setItem("fin_token", token);
+    localStorage.setItem("fin_email", email);
+    enterApp();
+  } catch (e) {
+    showMsg(e.message, "error");
+  }
+}
+
+function logout() {
+  token = null; userEmail = null;
+  localStorage.removeItem("fin_token");
+  localStorage.removeItem("fin_email");
+  stopPolling();
+  document.getElementById("app-view").style.display = "none";
+  document.getElementById("auth-view").style.display = "flex";
+}
+
+/* ====================== ВХОД В ПРИЛОЖЕНИЕ ====================== */
+async function enterApp() {
+  document.getElementById("auth-view").style.display = "none";
+  document.getElementById("app-view").style.display = "block";
+  document.getElementById("app-view").classList.add("fade");
+  document.getElementById("who").textContent = userEmail;
+  document.getElementById("tx-date").value = new Date().toISOString().slice(0, 10);
+  await refreshAll();
+  startPolling();
+}
+
+/* Авто-обновление: каждые 5 сек подтягиваем данные с сервера,
+   чтобы изменения, сделанные в боте, появлялись на сайте без перезагрузки. */
+let pollTimer = null;
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(async () => {
+    if (!token) return;
+    try {
+      await loadCategories();
+      await loadTransactions();
+      await loadDebts();
+      await loadBalance();
+      await loadStats();
+    } catch (e) { /* сетевые сбои при фоновом опросе тихо игнорируем */ }
+  }, 5000);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function refreshAll() {
+  try {
+    await loadCategories();
+    await loadTransactions();
+    await loadDebts();
+    await loadBalance();
+    await loadStats();
+  } catch (e) {
+    alert(e.message);
+    if (String(e.message).includes("credentials") || String(e.message).includes("401")) logout();
+  }
+}
+
+/* ====================== БАЛАНС ====================== */
+async function loadBalance() {
+  const b = await api("/stats/balance");
+  document.getElementById("b-income").textContent = money(b.income);
+  document.getElementById("b-expense").textContent = money(b.expense);
+  const balEl = document.getElementById("b-balance");
+  balEl.textContent = money(b.balance);
+  const negative = Number(b.balance) < 0;
+  balEl.style.color = negative ? "#C0392B" : "";
+  document.getElementById("bal-warn").style.display = negative ? "inline-flex" : "none";
+}
+
+/* ====================== СТАТИСТИКА (ГРАФИКИ) ====================== */
+let chartCat = null, chartMonth = null;
+let lastStatsKey = "";
+const PALETTE = ["#2f6b4f", "#b04a32", "#c9933a", "#3b6ea5", "#7a5c9e", "#5a8a6b", "#a8633f", "#8a8a3f"];
+
+async function loadStats() {
+  const byCat = await api("/stats/by-category?type=expense");
+  const byMonth = await api("/stats/by-month");
+
+  // если данные не изменились — не перерисовываем графики (чтобы не мигали при опросе)
+  const key = JSON.stringify([byCat, byMonth]);
+  if (key === lastStatsKey) return;
+  lastStatsKey = key;
+
+  const hasData = byCat.length || byMonth.length;
+  document.getElementById("stats-empty").style.display = hasData ? "none" : "block";
+
+  // Круговая диаграмма: расходы по категориям
+  if (chartCat) chartCat.destroy();
+  chartCat = new Chart(document.getElementById("chart-cat"), {
+    type: "doughnut",
+    data: {
+      labels: byCat.map(c => c.category_name || "Без категории"),
+      datasets: [{ data: byCat.map(c => Number(c.total)), backgroundColor: PALETTE, borderColor: "#fbf9f4", borderWidth: 2 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { font: { family: "Hanken Grotesk" }, color: "#20201d" } },
+        title: { display: true, text: "Расходы по категориям", font: { family: "Hanken Grotesk", size: 15 }, color: "#20201d" },
+      },
+    },
+  });
+
+  // Столбчатая диаграмма: доходы и расходы по месяцам
+  if (chartMonth) chartMonth.destroy();
+  chartMonth = new Chart(document.getElementById("chart-month"), {
+    type: "bar",
+    data: {
+      labels: byMonth.map(m => m.month),
+      datasets: [
+        { label: "Доходы", data: byMonth.map(m => Number(m.income)), backgroundColor: "#2f6b4f" },
+        { label: "Расходы", data: byMonth.map(m => Number(m.expense)), backgroundColor: "#b04a32" },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { font: { family: "Hanken Grotesk" }, color: "#20201d" } },
+        title: { display: true, text: "Доходы и расходы по месяцам", font: { family: "Hanken Grotesk", size: 15 }, color: "#20201d" },
+      },
+      scales: { y: { beginAtZero: true } },
+    },
+  });
+}
+
+/* ====================== ЭКСПОРТ В EXCEL ====================== */
+async function exportExcel() {
+  try {
+    // эндпоинт защищён токеном, поэтому скачиваем через fetch + Blob
+    const res = await fetch(API + "/transactions/export", { headers: { "Authorization": "Bearer " + token } });
+    if (!res.ok) { alert("Не удалось скачать файл"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "operations.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert("Ошибка соединения с сервером"); }
+}
+
+/* ====================== КАТЕГОРИИ ====================== */
+async function loadCategories() {
+  categories = await api("/categories");
+  // выпадающий список в форме операций (сохраняем текущий выбор, чтобы опрос не сбрасывал форму)
+  const sel = document.getElementById("tx-category");
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— без категории —</option>' +
+    categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${c.type === "income" ? "доход" : "расход"})</option>`).join("");
+  sel.value = prev;
+  // список категорий
+  const list = document.getElementById("cat-list");
+  if (!categories.length) { list.innerHTML = '<div class="empty">Пока нет категорий</div>'; return; }
+  list.innerHTML = categories.map(c => `
+    <div class="item">
+      <div class="info"><div class="t1">${escapeHtml(c.name)}</div></div>
+      <div class="right">
+        <span class="tag">${c.type === "income" ? "доход" : "расход"}</span>
+        <button class="del" title="Удалить" onclick="deleteCategory(${c.id})">×</button>
+      </div>
+    </div>`).join("");
+}
+
+async function addCategory() {
+  const name = document.getElementById("cat-name").value.trim();
+  const type = document.getElementById("cat-type").value;
+  if (!name) { alert("Введите название категории"); return; }
+  try {
+    await api("/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, type }),
+    });
+    document.getElementById("cat-name").value = "";
+    await loadCategories();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteCategory(id) {
+  if (!confirm("Удалить категорию?")) return;
+  try { await api("/categories/" + id, { method: "DELETE" }); await loadCategories(); await loadTransactions(); await loadStats(); }
+  catch (e) { alert(e.message); }
+}
+
+/* ====================== ОПЕРАЦИИ ====================== */
+async function loadTransactions() {
+  const txs = await api("/transactions");
+  const list = document.getElementById("tx-list");
+  if (!txs.length) { list.innerHTML = '<div class="empty">Пока нет операций</div>'; return; }
+  const catName = id => { const c = categories.find(x => x.id === id); return c ? c.name : "Без категории"; };
+  list.innerHTML = txs.map(t => `
+    <div class="item">
+      <div class="info">
+        <div class="t1">${escapeHtml(t.description || catName(t.category_id))}</div>
+        <div class="t2">${t.date} · ${escapeHtml(catName(t.category_id))}</div>
+      </div>
+      <div class="right">
+        <span class="amount ${t.type}">${t.type === "income" ? "+" : "−"}${money(t.amount).replace("−", "")}</span>
+        <button class="del" title="Удалить" onclick="deleteTransaction(${t.id})">×</button>
+      </div>
+    </div>`).join("");
+}
+
+async function addTransaction() {
+  const amount = document.getElementById("tx-amount").value;
+  const type = document.getElementById("tx-type").value;
+  const categoryId = document.getElementById("tx-category").value;
+  const description = document.getElementById("tx-desc").value.trim();
+  const date = document.getElementById("tx-date").value;
+  if (!amount || Number(amount) <= 0) { alert("Введите сумму больше нуля"); return; }
+  const payload = { amount: Number(amount), type };
+  if (categoryId) payload.category_id = Number(categoryId);
+  if (description) payload.description = description;
+  if (date) payload.date = date;
+  try {
+    await api("/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    document.getElementById("tx-amount").value = "";
+    document.getElementById("tx-desc").value = "";
+    await loadTransactions();
+    await loadBalance();
+    await loadStats();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteTransaction(id) {
+  if (!confirm("Удалить операцию?")) return;
+  try { await api("/transactions/" + id, { method: "DELETE" }); await loadTransactions(); await loadBalance(); await loadStats(); }
+  catch (e) { alert(e.message); }
+}
+
+/* ====================== ДОЛГИ ====================== */
+async function loadDebts() {
+  const debts = await api("/debts");
+  const list = document.getElementById("debt-list");
+  if (!debts.length) { list.innerHTML = '<div class="empty">Пока нет долгов</div>'; return; }
+  list.innerHTML = debts.map(d => `
+    <div class="item ${d.is_settled ? "settled" : ""}">
+      <div class="info">
+        <div class="t1">${escapeHtml(d.counterparty)}</div>
+        <div class="t2">${d.direction === "i_owe" ? "я должен" : "мне должны"}</div>
+      </div>
+      <div class="right">
+        <span class="amount ${d.direction === "i_owe" ? "expense" : "income"}">${money(d.amount)}</span>
+        ${d.is_settled ? "" : `<button class="settle" onclick="settleDebt(${d.id})">Погасить</button>`}
+        <button class="del" title="Удалить" onclick="deleteDebt(${d.id})">×</button>
+      </div>
+    </div>`).join("");
+}
+
+async function addDebt() {
+  const counterparty = document.getElementById("debt-name").value.trim();
+  const amount = document.getElementById("debt-amount").value;
+  const direction = document.getElementById("debt-dir").value;
+  if (!counterparty || !amount || Number(amount) <= 0) { alert("Заполните имя и сумму"); return; }
+  try {
+    await api("/debts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ counterparty, amount: Number(amount), direction }),
+    });
+    document.getElementById("debt-name").value = "";
+    document.getElementById("debt-amount").value = "";
+    await loadDebts();
+  } catch (e) { alert(e.message); }
+}
+
+async function settleDebt(id) {
+  try { await api("/debts/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_settled: true }) }); await loadDebts(); }
+  catch (e) { alert(e.message); }
+}
+
+async function deleteDebt(id) {
+  if (!confirm("Удалить долг?")) return;
+  try { await api("/debts/" + id, { method: "DELETE" }); await loadDebts(); }
+  catch (e) { alert(e.message); }
+}
+
+/* ---------- защита от вставки HTML ---------- */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+/* ---------- автозапуск: если токен уже сохранён — сразу в приложение ---------- */
+window.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("password").addEventListener("keydown", e => { if (e.key === "Enter") onAuthSubmit(); });
+  if (token && userEmail) enterApp();
+});
+</script>
+</body>
+</html>
